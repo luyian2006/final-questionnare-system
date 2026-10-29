@@ -1,0 +1,13 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.browser-mongo-data/
+.uv-cache-feature-test/
+.uv-cache-report/
+.uv-python-feature-test/
+.uv-python-phase2/
+.uv-cache-phase2/
+.venv-phase2/
+.fastapi-phase2*.log
