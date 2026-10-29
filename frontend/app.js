@@ -26,6 +26,11 @@ async function api(path, options = {}) {
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/")) {
+      clearSession();
+      openAuthDialog();
+      throw new Error("登录状态已失效，请重新登录。");
+    }
     const detail = body && typeof body === "object" ? body.detail : body;
     const message = typeof detail === "string" ? detail : JSON.stringify(detail || `HTTP ${response.status}`);
     throw new Error(message);
@@ -33,10 +38,71 @@ async function api(path, options = {}) {
   return body;
 }
 
+function clearSession() {
+  localStorage.removeItem(tokenKey);
+  localStorage.removeItem(userKey);
+  localStorage.removeItem("survey_user_id");
+  updateSession();
+}
+
 function updateSession() {
   const username = localStorage.getItem(userKey);
-  $("sessionText").textContent = username ? `已登录：${username}` : "未登录";
-  $("logoutButton").hidden = !username;
+  const signedIn = Boolean(username && localStorage.getItem(tokenKey));
+  $("sessionText").textContent = signedIn ? username : "未登录";
+  $("openAuthButton").hidden = signedIn;
+  $("openRegisterButton").hidden = signedIn;
+  $("logoutButton").hidden = !signedIn;
+}
+
+function openAuthDialog() {
+  const dialog = $("authDialog");
+  if (!dialog.open) dialog.showModal();
+  requestAnimationFrame(() => $("username").focus());
+}
+
+function openRegisterDialog() {
+  const dialog = $("registerDialog");
+  if (!dialog.open) dialog.showModal();
+  requestAnimationFrame(() => $("registerUsername").focus());
+}
+
+function switchDialog(fromId, openNext) {
+  const current = $(fromId);
+  if (current.open) current.close();
+  openNext();
+}
+
+function requireAuthentication() {
+  if (localStorage.getItem(tokenKey)) return true;
+  openAuthDialog();
+  setMessage("请先登录后再继续。", true);
+  return false;
+}
+
+function renderSignedOutState(target, subject) {
+  target.classList.add("empty");
+  target.replaceChildren();
+  const state = document.createElement("div");
+  state.className = "empty-state";
+  const copy = document.createElement("div");
+  copy.innerHTML = `<strong>登录后查看${subject}</strong><span>使用顶部账号入口登录或注册。</span>`;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button secondary small";
+  button.textContent = "登录";
+  button.addEventListener("click", openAuthDialog);
+  state.append(copy, button);
+  target.append(state);
+}
+
+function updateSurveySummary(surveys = null) {
+  const values = surveys ? [
+    surveys.length,
+    surveys.filter((survey) => survey.status === "published").length,
+    surveys.filter((survey) => survey.status === "draft" || (survey.published_version !== null && survey.current_version !== survey.published_version)).length,
+    surveys.filter((survey) => survey.status === "closed").length
+  ] : ["--", "--", "--", "--"];
+  [...$("surveySummary").querySelectorAll("strong")].forEach((node, index) => { node.textContent = values[index]; });
 }
 
 function answer(question, value) {
@@ -92,11 +158,35 @@ $("questionContentJson").value = JSON.stringify({
   validation: {}, jump_rules: []
 }, null, 2);
 
-$("registerButton").addEventListener("click", async () => {
+$("registerForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = $("registerUsername").value.trim();
+  const password = $("registerPassword").value;
+  if (password !== $("registerPasswordConfirm").value) {
+    setMessage("两次输入的密码不一致。", true);
+    return;
+  }
   try {
-    await api("/auth/register", { method: "POST", body: JSON.stringify({ username: $("username").value, password: $("password").value }) });
+    await api("/auth/register", { method: "POST", body: JSON.stringify({ username, password }) });
+    $("username").value = username;
+    $("password").value = "";
+    $("registerForm").reset();
+    switchDialog("registerDialog", openAuthDialog);
     setMessage("注册成功，请登录。");
   } catch (error) { setMessage(error.message, true); }
+});
+
+$("openAuthButton").addEventListener("click", openAuthDialog);
+$("openRegisterButton").addEventListener("click", openRegisterDialog);
+$("switchToRegisterButton").addEventListener("click", () => switchDialog("authDialog", openRegisterDialog));
+$("switchToLoginButton").addEventListener("click", () => switchDialog("registerDialog", openAuthDialog));
+$("closeAuthButton").addEventListener("click", () => $("authDialog").close());
+$("closeRegisterButton").addEventListener("click", () => $("registerDialog").close());
+$("authDialog").addEventListener("click", (event) => {
+  if (event.target === $("authDialog")) $("authDialog").close();
+});
+$("registerDialog").addEventListener("click", (event) => {
+  if (event.target === $("registerDialog")) $("registerDialog").close();
 });
 
 $("authForm").addEventListener("submit", async (event) => {
@@ -107,6 +197,7 @@ $("authForm").addEventListener("submit", async (event) => {
     localStorage.setItem(userKey, result.user.username);
     localStorage.setItem("survey_user_id", result.user.user_id);
     updateSession();
+    $("authDialog").close();
     setMessage("登录成功。");
     loadSurveys();
     loadQuestionItems();
@@ -114,18 +205,17 @@ $("authForm").addEventListener("submit", async (event) => {
 });
 
 $("logoutButton").addEventListener("click", () => {
-  localStorage.removeItem(tokenKey);
-  localStorage.removeItem(userKey);
-  localStorage.removeItem("survey_user_id");
-  updateSession();
-  $("surveyList").textContent = "登录后显示问卷。";
-  $("questionList").textContent = "登录后显示题目。";
+  clearSession();
+  updateSurveySummary();
+  renderSignedOutState($("surveyList"), "问卷");
+  renderSignedOutState($("questionList"), "题目");
   $("questionDetail").textContent = "登录后可管理题目。";
   setMessage("已退出登录。");
 });
 
 $("surveyForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!requireAuthentication()) return;
   try {
     const questions = JSON.parse($("questionsJson").value);
     const result = await api("/surveys", { method: "POST", body: JSON.stringify({
@@ -148,6 +238,7 @@ $("refreshQuestions").addEventListener("click", loadQuestionItems);
 
 $("questionForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!requireAuthentication()) return;
   try {
     const result = await api("/question-items", { method: "POST", body: JSON.stringify({
       display_title: $("questionDisplayTitle").value,
@@ -163,15 +254,20 @@ $("questionForm").addEventListener("submit", async (event) => {
 
 async function loadSurveys() {
   if (!localStorage.getItem(tokenKey)) {
-    $("surveyList").textContent = "登录后显示问卷。";
+    updateSurveySummary();
+    renderSignedOutState($("surveyList"), "问卷");
     return;
   }
   try {
     const surveys = await api("/surveys");
+    updateSurveySummary(surveys);
     const list = $("surveyList");
     list.classList.toggle("empty", surveys.length === 0);
     list.replaceChildren();
-    if (!surveys.length) { list.textContent = "还没有问卷。"; return; }
+    if (!surveys.length) {
+      list.innerHTML = '<div class="empty-state"><div><strong>还没有问卷</strong><span>展开“创建问卷”建立第一份草稿。</span></div></div>';
+      return;
+    }
     for (const survey of surveys) {
       const row = document.createElement("article");
       row.className = "survey-row";
@@ -183,12 +279,14 @@ async function loadSurveys() {
       const meta = document.createElement("div");
       meta.className = "survey-meta";
       const hasDraft = survey.published_version !== null && survey.current_version !== survey.published_version;
-      const status = hasDraft ? `${survey.status}（有未发布草稿）` : survey.status;
-      meta.textContent = `状态：${status} | 当前版本：v${survey.current_version} | 已发布：${survey.published_version ? `v${survey.published_version}` : "无"}`;
+      meta.textContent = `当前 v${survey.current_version} · 已发布 ${survey.published_version ? `v${survey.published_version}` : "无"}`;
       const deadline = document.createElement("div");
       deadline.className = "survey-meta";
       deadline.textContent = `截止时间：${formatDeadline(survey.deadline_at)}`;
-      info.append(title, meta, deadline);
+      const badge = document.createElement("span");
+      badge.className = `status-badge ${survey.status === "published" ? "published" : ""}`;
+      badge.textContent = hasDraft ? "有未发布草稿" : ({ draft: "草稿", published: "已发布", closed: "已关闭" }[survey.status] || survey.status);
+      info.append(title, badge, meta, deadline);
       const actions = document.createElement("div");
       actions.className = "survey-actions";
       addAction(actions, "统计", () => showStatistics(survey.survey_id));
@@ -208,7 +306,10 @@ async function loadSurveys() {
 }
 
 async function loadQuestionItems() {
-  if (!localStorage.getItem(tokenKey)) return;
+  if (!localStorage.getItem(tokenKey)) {
+    renderSignedOutState($("questionList"), "题目");
+    return;
+  }
   try {
     if (!localStorage.getItem("survey_user_id")) {
       const user = await api("/auth/me");
@@ -406,6 +507,8 @@ async function showStatistics(id) {
       const survey = await api(`/surveys/${id}`);
       panel = document.createElement("div");
       panel.className = "stats-panel";
+      const toolbar = document.createElement("div");
+      toolbar.className = "stats-toolbar";
       const label = document.createElement("label");
       label.textContent = "统计范围";
       const select = document.createElement("select");
@@ -414,22 +517,111 @@ async function showStatistics(id) {
       for (const version of survey.versions || []) {
         if (version.state === "published") select.append(new Option(`v${version.version}（已发布）`, version.version));
       }
-      const output = document.createElement("pre");
-      output.className = "stats";
+      const output = document.createElement("div");
+      output.className = "stats-content";
       label.append(select);
-      panel.append(label, output);
+      toolbar.append(label);
+      panel.append(toolbar, output);
       target.append(panel);
-      select.addEventListener("change", () => loadStatistics(id, select.value, output));
+      select.addEventListener("change", () => loadStatistics(id, select.value, output, survey));
+      panel._survey = survey;
     }
     const select = panel.querySelector("select");
-    await loadStatistics(id, select.value, panel.querySelector(".stats"));
+    await loadStatistics(id, select.value, panel.querySelector(".stats-content"), panel._survey);
   } catch (error) { setMessage(error.message, true); }
 }
 
-async function loadStatistics(id, version, output) {
+function questionTypeLabel(type) {
+  return ({ single_choice: "单选题", multiple_choice: "多选题", text_input: "文本题", number_input: "数字题" }[type] || "题目");
+}
+
+function statisticDefinitions(survey, version) {
+  const versions = survey.versions || [];
+  const selected = version
+    ? versions.find((item) => String(item.version) === String(version))
+    : versions.find((item) => item.version === survey.published_version) || versions.find((item) => item.version === survey.current_version);
+  return new Map((selected?.questions || []).map((question) => [question.question_id, question]));
+}
+
+function appendMetric(parent, value, label) {
+  const metric = document.createElement("div");
+  metric.className = "metric";
+  const number = document.createElement("strong"); number.textContent = value;
+  const caption = document.createElement("span"); caption.textContent = label;
+  metric.append(number, caption); parent.append(metric);
+}
+
+function renderStatistics(data, survey, version, output) {
+  output.replaceChildren();
+  const entries = Object.entries(data.questions || {});
+  const definitions = statisticDefinitions(survey, version);
+  const answeredTotal = entries.reduce((sum, [, stat]) => sum + (stat.answered_count || 0), 0);
+  const metrics = document.createElement("div");
+  metrics.className = "metric-grid";
+  appendMetric(metrics, data.response_count ?? 0, "答卷总数");
+  appendMetric(metrics, entries.length, "统计题目");
+  appendMetric(metrics, answeredTotal, "有效作答项");
+  output.append(metrics);
+
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = "<div><strong>暂无可统计题目</strong><span>发布问卷并收到答卷后，这里会显示结果。</span></div>";
+    output.append(empty);
+    return;
+  }
+
+  for (const [questionId, stat] of entries) {
+    const definition = definitions.get(questionId) || {};
+    const card = document.createElement("section");
+    card.className = "question-stat";
+    const header = document.createElement("div"); header.className = "question-stat-header";
+    const title = document.createElement("h3"); title.className = "question-stat-title"; title.textContent = definition.title || questionId;
+    const meta = document.createElement("span"); meta.className = "question-stat-meta";
+    meta.textContent = `${questionTypeLabel(definition.type)} · ${stat.answered_count || 0} 份作答`;
+    header.append(title, meta); card.append(header);
+
+    if (stat.option_counts) {
+      const labels = new Map((definition.options || []).map((option) => [option.option_id, option.label]));
+      for (const [optionId, count] of Object.entries(stat.option_counts)) {
+        const denominator = stat.answered_count || 0;
+        const ratio = denominator ? count / denominator : 0;
+        const row = document.createElement("div"); row.className = "option-stat";
+        const label = document.createElement("span"); label.textContent = labels.get(optionId) || optionId;
+        const bar = document.createElement("div"); bar.className = "option-bar";
+        const fill = document.createElement("span"); fill.style.width = `${Math.min(100, ratio * 100)}%`; bar.append(fill);
+        const value = document.createElement("span"); value.className = "option-value"; value.textContent = `${count} 次 · ${(ratio * 100).toFixed(1)}%`;
+        row.append(label, bar, value); card.append(row);
+      }
+    } else if (definition.type === "number_input") {
+      const row = document.createElement("div"); row.className = "metric-grid";
+      appendMetric(row, stat.average ?? "--", "平均值");
+      appendMetric(row, stat.answered_count || 0, "有效数字");
+      appendMetric(row, data.response_count ? `${Math.round((stat.answered_count || 0) / data.response_count * 100)}%` : "0%", "作答率");
+      card.append(row);
+    } else if (definition.type === "text_input") {
+      const count = document.createElement("p"); count.className = "status-line";
+      count.textContent = `收到 ${stat.answered_count || 0} 条文本回答。`;
+      card.append(count);
+      if (Array.isArray(stat.answers) && stat.answers.length) {
+        const details = document.createElement("details"); details.className = "text-answers";
+        const summary = document.createElement("summary"); summary.textContent = "查看文本回答"; details.append(summary);
+        for (const answerText of stat.answers) {
+          const answerLine = document.createElement("p"); answerLine.className = "text-answer"; answerLine.textContent = answerText; details.append(answerLine);
+        }
+        card.append(details);
+      }
+    } else {
+      const line = document.createElement("p"); line.className = "status-line"; line.textContent = `有效作答：${stat.answered_count || 0}`; card.append(line);
+    }
+    output.append(card);
+  }
+}
+
+async function loadStatistics(id, version, output, survey) {
   const query = version ? `?version=${encodeURIComponent(version)}` : "";
   const data = await api(`/surveys/${id}/statistics${query}`);
-  output.textContent = JSON.stringify(data, null, 2);
+  renderStatistics(data, survey, version, output);
 }
 
 async function showEditor(id) {
@@ -495,6 +687,7 @@ function renderQuestion() {
   const area = $("fillArea");
   area.replaceChildren();
   if (!currentSurvey) { area.textContent = "尚未打开分享问卷。"; return; }
+  area.classList.remove("empty");
   const question = currentSurvey.questions.find((item) => item.question_id === currentQuestionId);
   if (!question) {
     const done = document.createElement("div");
@@ -612,5 +805,5 @@ async function submitAnswers() {
 updateSession();
 const initialSlug = new URLSearchParams(location.search).get("share");
 if (initialSlug) { $("shareSlug").value = initialSlug; loadSharedSurvey(initialSlug); }
-if (localStorage.getItem(tokenKey)) loadSurveys();
-if (localStorage.getItem(tokenKey)) loadQuestionItems();
+loadSurveys();
+loadQuestionItems();

@@ -4,101 +4,117 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>问卷工作台</title>
-  <link rel="stylesheet" href="/static/styles.css?v=4">
+  <link rel="stylesheet" href="/static/styles.css?v=5">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <p class="eyebrow">SURVEY SYSTEM / PHASE II</p>
-      <h1>问卷工作台</h1>
-      <p class="subtitle">问卷、题目版本与答卷统计集中管理</p>
-    </div>
-    <div class="session">
-      <span class="status-dot" aria-hidden="true"></span><span id="sessionText">未登录</span>
-      <button id="logoutButton" class="button ghost" type="button" hidden>退出</button>
+    <div class="topbar-inner">
+      <a class="brand" href="#surveysSection" aria-label="问卷工作台首页">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span><strong>问卷工作台</strong><small>问卷、题目版本与统计</small></span>
+      </a>
+      <nav class="workspace-nav" aria-label="工作台导航">
+        <a href="#surveysSection">问卷</a><a href="#questionsSection">题目库</a><a href="#fillSection">填写</a>
+      </nav>
+      <div class="session">
+        <span class="status-dot" aria-hidden="true"></span><span id="sessionText">未登录</span>
+        <button id="openAuthButton" class="button light small" type="button">登录</button>
+        <button id="openRegisterButton" class="button ghost small" type="button">注册</button>
+        <button id="logoutButton" class="button ghost small" type="button" hidden>退出</button>
+      </div>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="card" id="authCard">
+  <main class="workspace">
+    <section class="workspace-section" id="surveysSection">
       <div class="section-heading">
-        <span class="step">1</span>
-        <div><h2>注册与登录</h2><p>填写者和问卷所有者都需要账号。</p></div>
+        <div><p class="section-kicker">问卷管理</p><h1>我的问卷</h1><p>创建、发布和查看每份问卷的答卷数据。</p></div>
+        <button id="refreshSurveys" class="button secondary" type="button">刷新列表</button>
       </div>
-      <form id="authForm" class="form">
-        <label>用户名<input id="username" autocomplete="username" required></label>
-        <label>密码<input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
-        <div class="actions">
-          <button class="button secondary" id="registerButton" type="button">注册</button>
-          <button class="button" type="submit">登录</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card">
-      <div class="section-heading">
-        <span class="step">2</span>
-        <div><h2>管理问卷</h2><p>登录后创建、发布、关闭和查看统计。</p></div>
+      <div id="surveySummary" class="summary-strip" aria-live="polite">
+        <div><strong>--</strong><span>全部问卷</span></div><div><strong>--</strong><span>已发布</span></div>
+        <div><strong>--</strong><span>草稿</span></div><div><strong>--</strong><span>已关闭</span></div>
       </div>
-      <details>
-        <summary>创建一份示例问卷</summary>
+      <details class="create-panel">
+        <summary>创建问卷</summary>
         <form id="surveyForm" class="form compact">
-          <label>标题<input id="surveyTitle" value="课程反馈问卷" required></label>
+          <div class="form-grid">
+            <label>标题<input id="surveyTitle" value="课程反馈问卷" required></label>
+            <label>截止时间<input id="surveyDeadline" type="datetime-local"></label>
+          </div>
           <label>描述<textarea id="surveyDescription" rows="2">用于演示问卷创建、填写和统计。</textarea></label>
-          <label>截止时间<input id="surveyDeadline" type="datetime-local"></label>
-          <label>题目 JSON<textarea id="questionsJson" class="code-input" rows="12"></textarea></label>
-          <label class="check"><input id="allowAnonymous" type="checkbox" checked> 对所有者隐藏填写者身份</label>
-          <label class="check"><input id="allowMultiple" type="checkbox"> 允许同一账号重复填写</label>
+          <details class="advanced-panel"><summary>高级题目配置</summary><label>题目 JSON<textarea id="questionsJson" class="code-input" rows="12"></textarea></label></details>
+          <div class="option-row">
+            <label class="check"><input id="allowAnonymous" type="checkbox" checked> 对所有者隐藏填写者身份</label>
+            <label class="check"><input id="allowMultiple" type="checkbox"> 允许同一账号重复填写</label>
+          </div>
           <button class="button" type="submit">创建问卷</button>
         </form>
       </details>
-      <div class="toolbar">
-        <button id="refreshSurveys" class="button secondary" type="button">刷新我的问卷</button>
-      </div>
       <div id="surveyList" class="list empty">登录后显示问卷。</div>
     </section>
 
-    <section class="card wide">
+    <section class="workspace-section" id="questionsSection">
       <div class="section-heading">
-        <span class="step">3</span>
-        <div><h2>题目库</h2><p>管理不可变版本、共享题目，并将指定版本加入问卷草稿。</p></div>
+        <div><p class="section-kicker">可复用内容</p><h2>题目库</h2><p>管理不可变版本、共享题目，并将指定版本加入问卷草稿。</p></div>
+        <button id="refreshQuestions" class="button secondary" type="button">刷新列表</button>
       </div>
-      <div class="library-toolbar">
-        <div class="segmented" role="tablist" aria-label="题目范围">
-          <button id="myQuestionsTab" class="segment active" type="button">我的题目</button>
-          <button id="sharedQuestionsTab" class="segment" type="button">共享题目</button>
-        </div>
-        <button id="refreshQuestions" class="button secondary" type="button">刷新</button>
-      </div>
-      <details class="library-create">
+      <div class="library-toolbar"><div class="segmented" role="tablist" aria-label="题目范围">
+        <button id="myQuestionsTab" class="segment active" type="button">我的题目</button>
+        <button id="sharedQuestionsTab" class="segment" type="button">共享题目</button>
+      </div></div>
+      <details class="create-panel library-create">
         <summary>创建题目</summary>
         <form id="questionForm" class="form compact">
           <label>列表名称<input id="questionDisplayTitle" value="课程满意度" required></label>
-          <label>题目内容 JSON<textarea id="questionContentJson" class="code-input" rows="12"></textarea></label>
+          <label>题目内容 JSON<textarea id="questionContentJson" class="code-input" rows="10"></textarea></label>
           <label class="check"><input id="questionShared" type="checkbox"> 允许其他登录用户使用</label>
           <button class="button" type="submit">创建题目 v1</button>
         </form>
       </details>
       <div class="library-layout">
         <div id="questionList" class="list library-list empty">登录后显示题目。</div>
-        <div id="questionDetail" class="library-detail empty">选择题目查看版本和使用情况。</div>
+        <div id="questionDetail" class="library-detail empty">选择题目查看版本、使用情况和统计。</div>
       </div>
     </section>
 
-    <section class="card wide">
-      <div class="section-heading">
-        <span class="step">4</span>
-        <div><h2>填写分享问卷</h2><p>输入分享标识读取问卷；答题和提交必须登录。</p></div>
-      </div>
-      <form id="shareForm" class="inline-form">
-        <input id="shareSlug" placeholder="例如 svy_xxxxxxxxxxxx" required>
-        <button class="button" type="submit">打开问卷</button>
-      </form>
+    <section class="workspace-section fill-section" id="fillSection">
+      <div class="section-heading"><div><p class="section-kicker">分享填写</p><h2>打开问卷</h2><p>输入分享标识读取已发布问卷；答题和提交需要登录。</p></div></div>
+      <form id="shareForm" class="inline-form"><input id="shareSlug" placeholder="svy_xxxxxxxxxxxx" aria-label="问卷分享标识" required><button class="button" type="submit">打开问卷</button></form>
       <div id="fillArea" class="fill-area empty">尚未打开分享问卷。</div>
     </section>
   </main>
 
+  <dialog id="authDialog" class="auth-dialog" aria-labelledby="authTitle">
+    <div class="dialog-header">
+      <div><p class="section-kicker">账号</p><h2 id="authTitle">登录</h2></div>
+      <button id="closeAuthButton" class="icon-button" type="button" aria-label="关闭登录窗口">×</button>
+    </div>
+    <p class="dialog-copy">使用已有账号进入问卷工作台。</p>
+    <form id="authForm" class="form">
+      <label>用户名<input id="username" autocomplete="username" required></label>
+      <label>密码<input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
+      <div class="dialog-footer"><span>还没有账号？</span><button class="text-button" id="switchToRegisterButton" type="button">前往注册</button></div>
+      <div class="actions dialog-actions"><button class="button" type="submit">登录</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="registerDialog" class="auth-dialog" aria-labelledby="registerTitle">
+    <div class="dialog-header">
+      <div><p class="section-kicker">新账号</p><h2 id="registerTitle">注册</h2></div>
+      <button id="closeRegisterButton" class="icon-button" type="button" aria-label="关闭注册窗口">×</button>
+    </div>
+    <p class="dialog-copy">创建账号后返回登录，不会自动进入工作台。</p>
+    <form id="registerForm" class="form">
+      <label>用户名<input id="registerUsername" autocomplete="username" required></label>
+      <label>密码<input id="registerPassword" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label>确认密码<input id="registerPasswordConfirm" type="password" autocomplete="new-password" minlength="6" required></label>
+      <div class="dialog-footer"><span>已有账号？</span><button class="text-button" id="switchToLoginButton" type="button">返回登录</button></div>
+      <div class="actions dialog-actions"><button class="button" type="submit">创建账号</button></div>
+    </form>
+  </dialog>
+
   <div id="message" class="message" role="status" aria-live="polite" hidden></div>
-  <script src="/static/app.js?v=4" defer></script>
+  <script src="/static/app.js?v=7" defer></script>
 </body>
 </html>
