@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>问卷工作台</title>
+  <link rel="stylesheet" href="/static/styles.css?v=4">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <p class="eyebrow">SURVEY SYSTEM / PHASE II</p>
+      <h1>问卷工作台</h1>
+      <p class="subtitle">问卷、题目版本与答卷统计集中管理</p>
+    </div>
+    <div class="session">
+      <span class="status-dot" aria-hidden="true"></span><span id="sessionText">未登录</span>
+      <button id="logoutButton" class="button ghost" type="button" hidden>退出</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card" id="authCard">
+      <div class="section-heading">
+        <span class="step">1</span>
+        <div><h2>注册与登录</h2><p>填写者和问卷所有者都需要账号。</p></div>
+      </div>
+      <form id="authForm" class="form">
+        <label>用户名<input id="username" autocomplete="username" required></label>
+        <label>密码<input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
+        <div class="actions">
+          <button class="button secondary" id="registerButton" type="button">注册</button>
+          <button class="button" type="submit">登录</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <span class="step">2</span>
+        <div><h2>管理问卷</h2><p>登录后创建、发布、关闭和查看统计。</p></div>
+      </div>
+      <details>
+        <summary>创建一份示例问卷</summary>
+        <form id="surveyForm" class="form compact">
+          <label>标题<input id="surveyTitle" value="课程反馈问卷" required></label>
+          <label>描述<textarea id="surveyDescription" rows="2">用于演示问卷创建、填写和统计。</textarea></label>
+          <label>截止时间<input id="surveyDeadline" type="datetime-local"></label>
+          <label>题目 JSON<textarea id="questionsJson" class="code-input" rows="12"></textarea></label>
+          <label class="check"><input id="allowAnonymous" type="checkbox" checked> 对所有者隐藏填写者身份</label>
+          <label class="check"><input id="allowMultiple" type="checkbox"> 允许同一账号重复填写</label>
+          <button class="button" type="submit">创建问卷</button>
+        </form>
+      </details>
+      <div class="toolbar">
+        <button id="refreshSurveys" class="button secondary" type="button">刷新我的问卷</button>
+      </div>
+      <div id="surveyList" class="list empty">登录后显示问卷。</div>
+    </section>
+
+    <section class="card wide">
+      <div class="section-heading">
+        <span class="step">3</span>
+        <div><h2>题目库</h2><p>管理不可变版本、共享题目，并将指定版本加入问卷草稿。</p></div>
+      </div>
+      <div class="library-toolbar">
+        <div class="segmented" role="tablist" aria-label="题目范围">
+          <button id="myQuestionsTab" class="segment active" type="button">我的题目</button>
+          <button id="sharedQuestionsTab" class="segment" type="button">共享题目</button>
+        </div>
+        <button id="refreshQuestions" class="button secondary" type="button">刷新</button>
+      </div>
+      <details class="library-create">
+        <summary>创建题目</summary>
+        <form id="questionForm" class="form compact">
+          <label>列表名称<input id="questionDisplayTitle" value="课程满意度" required></label>
+          <label>题目内容 JSON<textarea id="questionContentJson" class="code-input" rows="12"></textarea></label>
+          <label class="check"><input id="questionShared" type="checkbox"> 允许其他登录用户使用</label>
+          <button class="button" type="submit">创建题目 v1</button>
+        </form>
+      </details>
+      <div class="library-layout">
+        <div id="questionList" class="list library-list empty">登录后显示题目。</div>
+        <div id="questionDetail" class="library-detail empty">选择题目查看版本和使用情况。</div>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <div class="section-heading">
+        <span class="step">4</span>
+        <div><h2>填写分享问卷</h2><p>输入分享标识读取问卷；答题和提交必须登录。</p></div>
+      </div>
+      <form id="shareForm" class="inline-form">
+        <input id="shareSlug" placeholder="例如 svy_xxxxxxxxxxxx" required>
+        <button class="button" type="submit">打开问卷</button>
+      </form>
+      <div id="fillArea" class="fill-area empty">尚未打开分享问卷。</div>
+    </section>
+  </main>
+
+  <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+  <script src="/static/app.js?v=4" defer></script>
+</body>
+</html>
